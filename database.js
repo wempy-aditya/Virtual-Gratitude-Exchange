@@ -340,6 +340,243 @@ class DatabaseService {
             return { status: 'connecting', message: 'Connecting to database...' };
         }
     }
+
+    // Save gratitude message with ripple tracking
+    async saveGratitudeMessage(messageData) {
+        console.log('💾 Database saveGratitudeMessage called with:', messageData);
+        
+        if (this.isFallbackMode()) {
+            console.log('📱 Running in fallback mode');
+            return this.saveToLocalStorage(messageData);
+        }
+
+        try {
+            // Enhanced message data with ripple tracking
+            const enhancedData = {
+                message: messageData.message,
+                category: messageData.category,
+                category_label: messageData.categoryLabel,
+                country: messageData.country || 'Unknown',
+                ripple_parent_id: messageData.rippleParentId || null,
+                ripple_depth: messageData.rippleDepth || 0,
+                inspired_by_message_id: messageData.inspiredByMessageId || null
+            };
+
+            console.log('📝 Enhanced data for database:', enhancedData);
+
+            const { data, error } = await this.supabase
+                .from('gratitude_messages')
+                .insert([enhancedData])
+                .select()
+                .single();
+
+            if (error) {
+                console.error('❌ Database insert error:', error);
+                throw error;
+            }
+
+            console.log('✅ Message saved with ripple tracking:', data);
+            
+            // FALLBACK: Manual ripple count update if trigger doesn't work
+            if (enhancedData.ripple_parent_id) {
+                console.log('🔄 Manual ripple count update for parent:', enhancedData.ripple_parent_id);
+                setTimeout(async () => {
+                    try {
+                        // First check if parent count was already updated by trigger
+                        const { data: checkData } = await this.supabase
+                            .from('gratitude_messages')
+                            .select('ripple_count')
+                            .eq('id', enhancedData.ripple_parent_id)
+                            .single();
+                        
+                        console.log('📊 Parent ripple count after trigger:', checkData?.ripple_count);
+                        
+                        // If trigger worked (count > 0), skip manual update
+                        if (checkData && checkData.ripple_count > 0) {
+                            console.log('✅ Trigger worked! Skipping manual update.');
+                            return;
+                        }
+                        
+                        console.log('🔧 Trigger might not have worked, trying manual update...');
+                        
+                        // Try RPC function first
+                        const { data: rpcResult, error: rpcError } = await this.supabase
+                            .rpc('increment_ripple_count', { 
+                                parent_id: enhancedData.ripple_parent_id 
+                            });
+                        
+                        if (rpcError) {
+                            console.log('RPC failed, trying direct SQL update...');
+                            
+                            // Direct UPDATE with proper syntax
+                            const { data: directUpdate, error: directError } = await this.supabase
+                                .from('gratitude_messages')
+                                .update({ 
+                                    ripple_count: 1  // Simple increment for now
+                                })
+                                .eq('id', enhancedData.ripple_parent_id)
+                                .eq('ripple_count', 0); // Only update if still 0
+                            
+                            if (directError) {
+                                console.error('❌ Manual UPDATE also failed:', directError);
+                            } else {
+                                console.log('✅ Manual UPDATE successful');
+                            }
+                        } else {
+                            console.log('✅ RPC increment successful');
+                        }
+                    } catch (manualError) {
+                        console.error('❌ Manual ripple update failed:', manualError);
+                    }
+                }, 500);
+            }
+            
+            return data;
+
+        } catch (error) {
+            console.error('❌ Error saving message:', error);
+            console.log('🔄 Falling back to localStorage');
+            return this.saveToLocalStorage(messageData);
+        }
+    }
+
+    // Get ripple chain for a message
+    async getRippleChain(messageId) {
+        if (this.isFallbackMode()) {
+            return this.getFallbackRippleChain(messageId);
+        }
+
+        try {
+            const { data, error } = await this.supabase
+                .from('gratitude_messages')
+                .select(`
+                    id,
+                    message,
+                    category,
+                    ripple_count,
+                    ripple_depth,
+                    created_at,
+                    country,
+                    ripple_parent_id
+                `)
+                .or(`id.eq.${messageId},ripple_parent_id.eq.${messageId}`)
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
+            return this.buildRippleTree(data, messageId);
+
+        } catch (error) {
+            console.error('❌ Error fetching ripple chain:', error);
+            return this.getFallbackRippleChain(messageId);
+        }
+    }
+
+    // Build ripple tree structure
+    buildRippleTree(messages, rootId) {
+        const messageMap = new Map();
+        const rootMessage = messages.find(m => m.id == rootId);
+        
+        if (!rootMessage) return null;
+
+        // Build the tree structure
+        const tree = {
+            ...rootMessage,
+            children: [],
+            ripples: []
+        };
+
+        // Find all ripples (children) of this message
+        const ripples = messages.filter(m => m.ripple_parent_id == rootId);
+        tree.ripples = ripples;
+        tree.totalRipples = rootMessage.ripple_count || 0;
+
+        return tree;
+    }
+
+    // Get top ripple messages (most inspiring)
+    async getTopRippleMessages(limit = 10) {
+        if (this.isFallbackMode()) {
+            return this.getFallbackTopRipples(limit);
+        }
+
+        try {
+            const { data, error } = await this.supabase
+                .from('ripple_analytics')
+                .select('*')
+                .gte('ripple_count', 1)
+                .order('ripple_count', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+            return data;
+
+        } catch (error) {
+            console.error('❌ Error fetching top ripples:', error);
+            return this.getFallbackTopRipples(limit);
+        }
+    }
+
+    // Get ripple statistics
+    async getRippleStats() {
+        if (this.isFallbackMode()) {
+            return this.getFallbackRippleStats();
+        }
+
+        try {
+            const { data, error } = await this.supabase
+                .from('gratitude_messages')
+                .select('ripple_count, ripple_depth')
+                .gte('ripple_count', 0);
+
+            if (error) throw error;
+
+            const totalRipples = data.reduce((sum, msg) => sum + (msg.ripple_count || 0), 0);
+            const messagesWithRipples = data.filter(msg => msg.ripple_count > 0).length;
+            const maxRippleDepth = Math.max(...data.map(msg => msg.ripple_depth || 0));
+
+            return {
+                totalRipples,
+                messagesWithRipples,
+                maxRippleDepth,
+                averageRipples: messagesWithRipples > 0 ? (totalRipples / messagesWithRipples).toFixed(1) : 0
+            };
+
+        } catch (error) {
+            console.error('❌ Error fetching ripple stats:', error);
+            return this.getFallbackRippleStats();
+        }
+    }
+
+    // Fallback methods for demo mode
+    getFallbackRippleChain(messageId) {
+        return {
+            id: messageId,
+            message: "This kindness inspired others to spread more love!",
+            ripple_count: Math.floor(Math.random() * 50) + 5,
+            ripples: [
+                { id: 'r1', message: "Inspired by your message, I helped a stranger today", country: "Japan" },
+                { id: 'r2', message: "Your words motivated me to appreciate my team more", country: "Germany" }
+            ]
+        };
+    }
+
+    getFallbackTopRipples(limit) {
+        return [
+            { id: 1, message: "Thank you for being kind to everyone around you...", ripple_count: 47, category: "kindness", created_at: new Date().toISOString() },
+            { id: 2, message: "Your hard work inspires me to do better...", ripple_count: 32, category: "hardwork", created_at: new Date().toISOString() },
+            { id: 3, message: "Grateful for friends like you who never give up...", ripple_count: 28, category: "friendship", created_at: new Date().toISOString() }
+        ].slice(0, limit);
+    }
+
+    getFallbackRippleStats() {
+        return {
+            totalRipples: 157,
+            messagesWithRipples: 23,
+            maxRippleDepth: 4,
+            averageRipples: 6.8
+        };
+    }
 }
 
 // Export for use in main application

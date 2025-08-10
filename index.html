@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="notifications.css">
     <link rel="stylesheet" href="share-modal.css">
+    <link rel="stylesheet" href="footer.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Supabase Client -->
@@ -73,6 +74,10 @@
             <button class="tab-btn" data-tab="receive" id="receiveTab">
                 <i class="fas fa-gift"></i>
                 <span>Receive Joy</span>
+            </button>
+            <button class="tab-btn" data-tab="ripple" id="rippleTab">
+                <i class="fas fa-water"></i>
+                <span>Ripple Effect</span>
             </button>
             <button class="tab-btn" data-tab="stats" id="statsTab">
                 <i class="fas fa-chart-line"></i>
@@ -166,6 +171,7 @@
                     </div>
                 </div>
                 
+                <!-- Update Receive section to include inspire button -->
                 <div class="receive-actions">
                     <button class="btn-primary" id="newMessageBtn">
                         <i class="fas fa-refresh"></i>
@@ -175,6 +181,79 @@
                         <i class="fas fa-share-alt"></i>
                         <span>Share This Message</span>
                     </button>
+                    <button class="btn-accent" id="inspireBtn" style="display: none;">
+                        <i class="fas fa-water"></i>
+                        <span>This Inspired Me!</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Ripple Tab Content -->
+        <div class="tab-content" id="rippleContent">
+            <div class="content-card">
+                <div class="card-header">
+                    <h2>🌊 Kindness Ripple Effect</h2>
+                    <p>See how your messages inspire others to spread kindness</p>
+                </div>
+                
+                <div class="ripple-dashboard">
+                    <!-- Ripple Overview -->
+                    <div class="ripple-overview">
+                        <div class="ripple-stat-card">
+                            <div class="ripple-icon">🌊</div>
+                            <div class="ripple-info">
+                                <div class="ripple-number" id="totalRipples">0</div>
+                                <div class="ripple-label">Total Ripples Created</div>
+                            </div>
+                        </div>
+                        
+                        <div class="ripple-stat-card">
+                            <div class="ripple-icon">✨</div>
+                            <div class="ripple-info">
+                                <div class="ripple-number" id="myRipples">0</div>
+                                <div class="ripple-label">Your Messages' Ripples</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Inspiring Messages -->
+                    <div class="ripple-section">
+                        <h3>🏆 Most Inspiring Messages</h3>
+                        <div class="ripple-messages" id="topRippleMessages">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Ripple Visualization -->
+                    <div class="ripple-section">
+                        <h3>🎯 How Ripples Work</h3>
+                        <div class="ripple-explanation">
+                            <div class="ripple-step">
+                                <div class="step-number">1</div>
+                                <div class="step-content">
+                                    <h4>You Send a Message</h4>
+                                    <p>Your gratitude reaches someone around the world</p>
+                                </div>
+                            </div>
+                            <div class="ripple-arrow">→</div>
+                            <div class="ripple-step">
+                                <div class="step-number">2</div>
+                                <div class="step-content">
+                                    <h4>They Get Inspired</h4>
+                                    <p>Your message motivates them to send gratitude too</p>
+                                </div>
+                            </div>
+                            <div class="ripple-arrow">→</div>
+                            <div class="ripple-step">
+                                <div class="step-number">3</div>
+                                <div class="step-content">
+                                    <h4>Ripple Effect!</h4>
+                                    <p>One message creates a chain of kindness worldwide</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -224,6 +303,84 @@
             </div>
         </div>
     </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <div class="footer-logo">
+                    <i class="fas fa-heart"></i>
+                    <span>Gratitude</span>
+                </div>
+                <p class="footer-description">
+                    Share kindness worldwide through anonymous gratitude messages. 
+                    Together we create a more grateful world, one message at a time.
+                </p>
+                <div class="footer-social">
+                    <a href="#" class="social-link" title="Twitter">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" class="social-link" title="Facebook">
+                        <i class="fab fa-facebook"></i>
+                    </a>
+                    <a href="#" class="social-link" title="Instagram">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                    <a href="#" class="social-link" title="LinkedIn">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Platform</h4>
+                <ul class="footer-links">
+                    <li><a href="#" onclick="window.gratitudeApp?.switchTab('send')">Send Message</a></li>
+                    <li><a href="#" onclick="window.gratitudeApp?.switchTab('receive')">Receive Message</a></li>
+                    <li><a href="#" onclick="window.gratitudeApp?.switchTab('stats')">Statistics</a></li>
+                    <li><a href="demo.html">Demo Version</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Community</h4>
+                <ul class="footer-links">
+                    <li><a href="#">How It Works</a></li>
+                    <li><a href="#">Privacy Policy</a></li>
+                    <li><a href="#">Terms of Service</a></li>
+                    <li><a href="#">Community Guidelines</a></li>
+                </ul>
+            </div>
+            
+            <div class="footer-section">
+                <h4>Support</h4>
+                <ul class="footer-links">
+                    <li><a href="#">Help Center</a></li>
+                    <li><a href="#">Contact Us</a></li>
+                    <li><a href="#">Report Issue</a></li>
+                    <li><a href="#">Feedback</a></li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="footer-bottom">
+            <div class="footer-bottom-content">
+                <p class="copyright">
+                    &copy; 2025 Virtual Gratitude Exchange. Made with <i class="fas fa-heart"></i> for spreading kindness worldwide.
+                </p>
+                <div class="footer-stats">
+                    <span class="footer-stat">
+                        <i class="fas fa-heart"></i>
+                        <span id="footerTotalMessages">1.2K</span> Messages
+                    </span>
+                    <span class="footer-stat">
+                        <i class="fas fa-globe"></i>
+                        <span id="footerActiveUsers">156</span> Active Users
+                    </span>
+                </div>
+            </div>
+        </div>
+    </footer>
 
     <!-- Success Modal -->
     <div class="modal-overlay" id="successModal">

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Debug Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Database Debug Tool</h1>
+    <div id="results"></div>
+    
+    <script>
+        const SUPABASE_CONFIG = {
+            url: 'https://hxbujiubaasvhsvzmvyj.supabase.co',
+            apiKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4YnVqaXViYWFzdmhzdnptdnlqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ3ODI1NTMsImV4cCI6MjA3MDM1ODU1M30.HrMwEKj9OiImUulWGpwWV5zIpkq3deNZfC9Mz_67mxM'
+        };
+
+        const supabase = supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.apiKey);
+        
+        async function debugDatabase() {
+            const results = document.getElementById('results');
+            
+            try {
+                // Test 1: Check if we can read from table
+                console.log('Testing database connection...');
+                const { data: testData, error: testError } = await supabase
+                    .from('gratitude_messages')
+                    .select('*')
+                    .limit(1);
+                
+                if (testError) {
+                    results.innerHTML += `<p><strong>❌ Database Error:</strong> ${testError.message}</p>`;
+                    return;
+                }
+                
+                results.innerHTML += `<p><strong>✅ Database Connected!</strong></p>`;
+                
+                // Test 2: Check if ripple columns exist
+                if (testData && testData.length > 0) {
+                    const firstMessage = testData[0];
+                    results.innerHTML += `<p><strong>Sample message structure:</strong></p>`;
+                    results.innerHTML += `<pre>${JSON.stringify(firstMessage, null, 2)}</pre>`;
+                    
+                    // Check for ripple columns
+                    const hasRippleParent = 'ripple_parent_id' in firstMessage;
+                    const hasRippleDepth = 'ripple_depth' in firstMessage;
+                    const hasRippleCount = 'ripple_count' in firstMessage;
+                    
+                    results.innerHTML += `<p><strong>Ripple Columns Check:</strong></p>`;
+                    results.innerHTML += `<p>ripple_parent_id: ${hasRippleParent ? '✅' : '❌'}</p>`;
+                    results.innerHTML += `<p>ripple_depth: ${hasRippleDepth ? '✅' : '❌'}</p>`;
+                    results.innerHTML += `<p>ripple_count: ${hasRippleCount ? '✅' : '❌'}</p>`;
+                } else {
+                    results.innerHTML += `<p><strong>No messages in database yet</strong></p>`;
+                    
+                    // Try to insert a test message to see the structure
+                    const { data: insertData, error: insertError } = await supabase
+                        .from('gratitude_messages')
+                        .insert([{
+                            message: 'Test message for schema check',
+                            category: 'general',
+                            category_label: 'General',
+                            country: 'Test'
+                        }])
+                        .select()
+                        .single();
+                    
+                    if (insertError) {
+                        results.innerHTML += `<p><strong>❌ Insert Error:</strong> ${insertError.message}</p>`;
+                    } else {
+                        results.innerHTML += `<p><strong>✅ Test message inserted:</strong></p>`;
+                        results.innerHTML += `<pre>${JSON.stringify(insertData, null, 2)}</pre>`;
+                    }
+                }
+                
+                // Test 3: Check if view exists
+                const { data: viewData, error: viewError } = await supabase
+                    .from('ripple_analytics')
+                    .select('*')
+                    .limit(1);
+                
+                if (viewError) {
+                    results.innerHTML += `<p><strong>❌ Ripple Analytics View Error:</strong> ${viewError.message}</p>`;
+                } else {
+                    results.innerHTML += `<p><strong>✅ Ripple Analytics View exists!</strong></p>`;
+                }
+                
+            } catch (error) {
+                results.innerHTML += `<p><strong>❌ General Error:</strong> ${error.message}</p>`;
+                console.error('Debug error:', error);
+            }
+        }
+        
+        // Run debug when page loads
+        debugDatabase();
+    </script>
+</body>
+</html>

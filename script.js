@@ -8,6 +8,9 @@ class GratitudeApp {
         this.theme = localStorage.getItem('theme') || 'light';
         this.databaseService = null;
         this.isInitialized = false;
+
+        this.currentMessage = null; // Store current received message
+        this.rippleMode = false; // Track if user was inspired
         
         // Initialize synchronously first
         this.initSync();
@@ -30,6 +33,9 @@ class GratitudeApp {
         
         // Initialize database service FIRST
         await this.initializeDatabase();
+        
+        // Test database schema for ripple columns
+        await this.testRippleSchema();
         
         // Check for shared message AFTER database is ready
         const urlParams = new URLSearchParams(window.location.search);
@@ -66,6 +72,35 @@ class GratitudeApp {
         } catch (error) {
             console.error('❌ Database initialization failed:', error);
             this.databaseService = null;
+        }
+    }
+
+    // Test if ripple columns exist in database
+    async testRippleSchema() {
+        if (!this.databaseService || this.databaseService.isFallbackMode()) {
+            console.log('⚠️ Skipping schema test - fallback mode');
+            return;
+        }
+
+        try {
+            console.log('🔍 Testing ripple schema...');
+            
+            // Try to select ripple columns to see if they exist
+            const { data, error } = await this.databaseService.supabase
+                .from('gratitude_messages')
+                .select('id, ripple_parent_id, ripple_depth, ripple_count, inspired_by_message_id')
+                .limit(1);
+
+            if (error) {
+                console.error('❌ Ripple schema test failed:', error.message);
+                if (error.message.includes('column') && error.message.includes('does not exist')) {
+                    console.log('🚨 RIPPLE COLUMNS MISSING! Run add-ripple-columns.sql in Supabase');
+                }
+            } else {
+                console.log('✅ Ripple schema test passed - columns exist');
+            }
+        } catch (error) {
+            console.error('❌ Schema test error:', error);
         }
     }
 
@@ -143,6 +178,25 @@ class GratitudeApp {
             });
         }
 
+        // Inspire button
+        const inspireBtn = document.getElementById('inspireBtn');
+        if (inspireBtn) {
+            inspireBtn.addEventListener('click', () => this.handleInspiredAction());
+        }
+
+        // Tab switching (enhanced for ripple tab)
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                this.switchTab(tab);
+                
+                // Load ripple dashboard when switching to ripple tab
+                if (tab === 'ripple') {
+                    this.loadRippleDashboard();
+                }
+            });
+        });
+
         console.log('✅ Event listeners setup complete');
     }
 
@@ -173,59 +227,125 @@ class GratitudeApp {
             this.updateStats();
         }
 
-        console.log(`📍 Switched to ${tabName} tab`);
+        // Only log tab switches for debugging when needed
+        // console.log(`📍 Switched to ${tabName} tab`);
     }
 
-    // Form Handling
-    async handleFormSubmit(e) {
-        e.preventDefault();
-        
-        const category = document.getElementById('category').value;
-        const message = document.getElementById('message').value;
-
-        if (!category || !message.trim()) {
-            this.showNotification('Please fill in all fields! 📝', 'error');
+    // Handle "This Inspired Me" button
+    handleInspiredAction() {
+        if (!this.currentMessage) {
+            console.log('❌ No current message found for ripple');
             return;
         }
 
-        this.showLoading('Sending your gratitude to the world... 🌍');
+        console.log('🌊 Inspire button clicked!');
+        console.log('Current message:', this.currentMessage);
+
+        // Switch to send tab with inspiration context
+        this.rippleMode = true;
+        this.switchTab('send');
+        
+        console.log('✅ Ripple mode activated:', this.rippleMode);
+        
+        // Show inspiration message
+        this.showNotification('✨ Write a message inspired by what you received!', 'info', 5000);
+        
+        // Focus on message textarea
+        setTimeout(() => {
+            const messageTextarea = document.getElementById('message');
+            if (messageTextarea) {
+                messageTextarea.focus();
+                messageTextarea.placeholder = "Inspired by that beautiful message, I want to say...";
+            }
+        }, 500);
+    }
+
+    // Enhanced form submit with ripple tracking
+    async handleFormSubmit(e) {
+        e.preventDefault();
+        
+        const messageInput = document.getElementById('message');
+        const categoryInput = document.getElementById('category');
+        
+        if (!messageInput.value.trim() || !categoryInput.value) {
+            this.showNotification('Please fill in all fields', 'error');
+            return;
+        }
+
+        this.showLoading('Sending your gratitude to the world...');
 
         try {
-            // Simulate sending message
-            await this.simulateDelay(2000);
+            const messageData = {
+                message: messageInput.value.trim(),
+                category: categoryInput.value,
+                categoryLabel: this.getCategoryLabel(categoryInput.value),
+                country: await this.getUserCountry(),
+                // Add ripple tracking if inspired by previous message
+                ...(this.rippleMode && this.currentMessage && {
+                    inspiredByMessageId: this.currentMessage.id,
+                    rippleParentId: this.currentMessage.ripple_parent_id || this.currentMessage.id,
+                    rippleDepth: (this.currentMessage.ripple_depth || 0) + 1
+                })
+            };
 
-            // Send message via database service if available
-            let success = false;
-            if (this.databaseService) {
-                const messageData = {
-                    category,
-                    message: message.trim(),
-                    categoryLabel: this.getCategoryLabel(category)
-                };
+            console.log('🚀 Submitting message data:');
+            console.log('Ripple mode:', this.rippleMode);
+            console.log('Current message:', this.currentMessage);
+            console.log('Message data:', messageData);
+
+            const result = await this.databaseService.saveGratitudeMessage(messageData);
+            
+            console.log('💾 Database save result:', result);
+            
+            if (result) {
+                // If this was a ripple message, let's verify the parent was updated
+                if (messageData.rippleParentId) {
+                    console.log('🔍 Checking if parent ripple count was updated...');
+                    setTimeout(async () => {
+                        try {
+                            const parentCheck = await this.databaseService.supabase
+                                .from('gratitude_messages')
+                                .select('id, ripple_count, message')
+                                .eq('id', messageData.rippleParentId)
+                                .single();
+                            
+                            if (parentCheck.data) {
+                                console.log('📊 Parent message after ripple:', parentCheck.data);
+                                console.log(`Ripple count for parent ${messageData.rippleParentId}: ${parentCheck.data.ripple_count}`);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error checking parent ripple count:', error);
+                        }
+                    }, 1000);
+                }
                 
-                const result = await this.databaseService.saveGratitudeMessage(messageData);
-                success = !!result;
-                console.log('📤 Message saved to database:', result);
-            } else {
-                // Fallback: just simulate success
-                success = true;
-                console.log('📤 Message saved in fallback mode');
-            }
-
-            this.hideLoading();
-
-            if (success) {
+                // Reset ripple mode
+                this.rippleMode = false;
+                this.currentMessage = null;
+                
+                // Reset form
+                messageInput.value = '';
+                messageInput.placeholder = 'Write a heartfelt message of gratitude...';
+                categoryInput.value = '';
+                this.updateCharCounter({ target: { value: '' } });
+                
+                this.hideLoading();
                 this.showSuccessModal();
-                this.resetForm();
-                this.updateStats();
-                console.log('✅ Message sent successfully');
+                await this.updateStats();
+                
+                // Show ripple effect notification if was inspired
+                if (messageData.inspiredByMessageId) {
+                    setTimeout(() => {
+                        this.showNotification('🌊 Your message created a ripple effect!', 'success', 4000);
+                    }, 2000);
+                }
             } else {
-                this.showNotification('Failed to send message. Please try again! 😔', 'error');
+                throw new Error('Failed to save message');
             }
         } catch (error) {
-            console.error('❌ Error sending message:', error);
             this.hideLoading();
-            this.showNotification('Something went wrong. Please try again! 🔧', 'error');
+            this.showNotification('Failed to send message. Please try again.', 'error');
+            console.error('Error sending message:', error);
         }
     }
 
@@ -321,6 +441,56 @@ class GratitudeApp {
         return categoryLabels[category] || 'Secara Umum';
     }
 
+    // Get User Country (simplified version)
+    async getUserCountry() {
+        try {
+            // Try to get country from IP geolocation API
+            const response = await fetch('https://ipapi.co/json/');
+            if (response.ok) {
+                const data = await response.json();
+                return data.country_name || 'Unknown';
+            }
+        } catch (error) {
+            console.log('Could not get country from API, using fallback');
+        }
+        
+        // Fallback to browser locale
+        try {
+            const locale = navigator.language || navigator.userLanguage;
+            if (locale.includes('-')) {
+                const countryCode = locale.split('-')[1].toUpperCase();
+                const countryMap = {
+                    'ID': 'Indonesia',
+                    'US': 'United States',
+                    'GB': 'United Kingdom',
+                    'AU': 'Australia',
+                    'CA': 'Canada',
+                    'DE': 'Germany',
+                    'FR': 'France',
+                    'JP': 'Japan',
+                    'KR': 'South Korea',
+                    'CN': 'China',
+                    'IN': 'India',
+                    'BR': 'Brazil',
+                    'MX': 'Mexico',
+                    'IT': 'Italy',
+                    'ES': 'Spain',
+                    'NL': 'Netherlands',
+                    'SE': 'Sweden',
+                    'NO': 'Norway',
+                    'DK': 'Denmark',
+                    'FI': 'Finland'
+                };
+                return countryMap[countryCode] || 'Unknown';
+            }
+        } catch (error) {
+            console.log('Could not get country from locale');
+        }
+        
+        // Final fallback
+        return 'Unknown';
+    }
+
     // Initialize Default Message
     initializeDefaultMessage() {
         const defaultMessage = {
@@ -385,8 +555,98 @@ class GratitudeApp {
             // Show share button
             this.updateShareButton();
 
+            // Show inspire button
+            const inspireBtn = document.getElementById('inspireBtn');
+            if (inspireBtn) {
+                inspireBtn.style.display = 'inline-flex';
+            }
+
             console.log('💌 Message displayed successfully');
         }
+    }
+
+    // Load ripple dashboard
+    async loadRippleDashboard() {
+        try {
+            const [topRipples, rippleStats] = await Promise.all([
+                this.databaseService.getTopRippleMessages(5),
+                this.databaseService.getRippleStats()
+            ]);
+
+            this.displayTopRippleMessages(topRipples);
+            this.updateRippleStats(rippleStats);
+
+        } catch (error) {
+            console.error('Error loading ripple dashboard:', error);
+            this.displayFallbackRippleData();
+        }
+    }
+
+    // Display top ripple messages
+    displayTopRippleMessages(messages) {
+        const container = document.getElementById('topRippleMessages');
+        if (!container) return;
+
+        container.innerHTML = messages.map((message, index) => `
+            <div class="ripple-message-card" data-ripples="${message.ripple_count}">
+                <div class="ripple-rank">#${index + 1}</div>
+                <div class="ripple-message-content">
+                    <div class="ripple-category">${this.getCategoryLabel(message.category)}</div>
+                    <blockquote class="ripple-text">${message.message}</blockquote>
+                    <div class="ripple-impact">
+                        <span class="ripple-count">
+                            <i class="fas fa-water"></i>
+                            ${message.ripple_count} ripples
+                        </span>
+                        <span class="ripple-time">${this.formatRelativeTime(new Date(message.created_at))}</span>
+                    </div>
+                </div>
+                <div class="ripple-waves">
+                    ${Array.from({length: Math.min(message.ripple_count, 5)}, () => '<div class="wave"></div>').join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Update ripple statistics display
+    updateRippleStats(stats) {
+        const totalRipplesEl = document.getElementById('totalRipples');
+        const myRipplesEl = document.getElementById('myRipples');
+
+        if (totalRipplesEl) {
+            totalRipplesEl.textContent = stats.totalRipples || 0;
+        }
+
+        if (myRipplesEl) {
+            // For now, show messages with ripples count
+            // In a real app, this would be user-specific
+            myRipplesEl.textContent = stats.messagesWithRipples || 0;
+        }
+    }
+
+    // Display fallback ripple data when database fails
+    displayFallbackRippleData() {
+        this.displayTopRippleMessages([
+            { 
+                id: 1, 
+                message: "Thank you for being so kind...", 
+                category: "kindness", 
+                ripple_count: 12, 
+                created_at: new Date().toISOString() 
+            },
+            { 
+                id: 2, 
+                message: "Your hard work inspires me...", 
+                category: "hardwork", 
+                ripple_count: 8, 
+                created_at: new Date().toISOString() 
+            }
+        ]);
+
+        this.updateRippleStats({
+            totalRipples: 45,
+            messagesWithRipples: 8
+        });
     }
 
     // Update Share Button
@@ -701,6 +961,13 @@ class GratitudeApp {
             if (todayEl) todayEl.textContent = this.formatNumber(stats.todayMessages);
             if (activeEl) activeEl.textContent = this.formatNumber(stats.activeUsers);
 
+            // Update footer stats
+            const footerTotalEl = document.getElementById('footerTotalMessages');
+            const footerActiveEl = document.getElementById('footerActiveUsers');
+            
+            if (footerTotalEl) footerTotalEl.textContent = this.formatNumber(stats.totalMessages);
+            if (footerActiveEl) footerActiveEl.textContent = this.formatNumber(stats.activeUsers);
+
             // Update category stats
             this.updateCategoryStats(stats.categoryStats);
 
@@ -772,11 +1039,11 @@ class GratitudeApp {
             activeUsers: 156
         };
 
-        document.querySelectorAll('#heroTotalMessages, #totalMessages').forEach(el => {
+        document.querySelectorAll('#heroTotalMessages, #totalMessages, #footerTotalMessages').forEach(el => {
             if (el) el.textContent = this.formatNumber(defaultStats.totalMessages);
         });
         
-        document.querySelectorAll('#heroActiveUsers, #activeUsers').forEach(el => {
+        document.querySelectorAll('#heroActiveUsers, #activeUsers, #footerActiveUsers').forEach(el => {
             if (el) el.textContent = this.formatNumber(defaultStats.activeUsers);
         });
         
