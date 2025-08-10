@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Gratitude Exchange - Demo</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .demo-banner {
+            background: linear-gradient(135deg, #ff6b9d 0%, #c44569 100%);
+            color: white;
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        .demo-banner i {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Demo Banner -->
+        <div class="demo-banner">
+            <i class="fas fa-flask"></i>
+            Mode Demo - Data disimpan secara lokal di browser Anda
+        </div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <i class="fas fa-heart"></i>
+                <h1>Virtual Gratitude Exchange</h1>
+            </div>
+            <p class="subtitle">Bagikan rasa terima kasih dengan dunia</p>
+            <!-- Connection Status -->
+            <div class="connection-status fallback" id="connectionStatus">
+                Demo Mode - Using local storage
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Send Gratitude Section -->
+            <section class="section send-section" id="sendSection">
+                <div class="section-header">
+                    <h2><i class="fas fa-paper-plane"></i> Kirim Apresiasi</h2>
+                    <p>Kirimkan pesan terima kasih anonim kepada seseorang di dunia</p>
+                </div>
+
+                <form class="gratitude-form" id="gratitudeForm">
+                    <div class="form-group">
+                        <label for="category">Kategori Apresiasi</label>
+                        <select id="category" required>
+                            <option value="">Pilih kategori...</option>
+                            <option value="kindness">Atas Kebaikan Hati</option>
+                            <option value="hardwork">Atas Kerja Keras</option>
+                            <option value="friendship">Atas Persahabatan</option>
+                            <option value="help">Atas Bantuan</option>
+                            <option value="inspiration">Atas Inspirasi</option>
+                            <option value="general">Apresiasi Umum</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="message">Pesan Terima Kasih</label>
+                        <textarea id="message" placeholder="Tulis pesan terima kasih yang tulus..." required maxlength="280"></textarea>
+                        <div class="char-counter">
+                            <span id="charCount">0</span>/280
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-heart"></i>
+                        Kirim Apresiasi
+                    </button>
+                </form>
+            </section>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-secondary" id="receiveBtn">
+                    <i class="fas fa-gift"></i>
+                    Terima Apresiasi
+                </button>
+                <button class="btn btn-outline" id="viewStatsBtn">
+                    <i class="fas fa-chart-simple"></i>
+                    Lihat Statistik
+                </button>
+            </div>
+
+            <!-- Receive Gratitude Section -->
+            <section class="section receive-section" id="receiveSection" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-gift"></i> Apresiasi untuk Anda</h2>
+                    <p>Seseorang di dunia mengirimkan pesan ini untuk Anda</p>
+                </div>
+
+                <div class="gratitude-card" id="gratitudeCard">
+                    <div class="card-content">
+                        <div class="category-badge" id="receivedCategory"></div>
+                        <p class="message-text" id="receivedMessage"></p>
+                        <div class="card-footer">
+                            <span class="anonymous-label">Dari seseorang di dunia 🌍</span>
+                            <span class="timestamp" id="receivedTime"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="receive-actions">
+                    <button class="btn btn-primary" id="newMessageBtn">
+                        <i class="fas fa-refresh"></i>
+                        Pesan Baru
+                    </button>
+                    <button class="btn btn-outline" id="backToSendBtn">
+                        <i class="fas fa-arrow-left"></i>
+                        Kembali
+                    </button>
+                </div>
+            </section>
+
+            <!-- Statistics Section -->
+            <section class="section stats-section" id="statsSection" style="display: none;">
+                <div class="section-header">
+                    <h2><i class="fas fa-chart-simple"></i> Statistik Demo</h2>
+                    <p>Lihat statistik lokal dari pesan yang Anda kirim</p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="totalMessages">5</div>
+                        <div class="stat-label">Pesan Demo</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="todayMessages">0</div>
+                        <div class="stat-label">Anda Kirim</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="activeUsers">1</div>
+                        <div class="stat-label">User (Anda)</div>
+                    </div>
+                </div>
+
+                <div class="category-stats">
+                    <h3>Kategori Populer</h3>
+                    <div class="category-list" id="categoryStats">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <button class="btn btn-outline" id="backFromStatsBtn">
+                    <i class="fas fa-arrow-left"></i>
+                    Kembali
+                </button>
+            </section>
+        </main>
+
+        <!-- Success Modal -->
+        <div class="modal" id="successModal">
+            <div class="modal-content">
+                <div class="modal-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h3>Apresiasi Terkirim!</h3>
+                <p>Pesan terima kasih Anda telah disimpan dalam mode demo. Dalam versi lengkap, pesan ini akan dikirimkan ke seseorang di dunia! ✨</p>
+                <button class="btn btn-primary" id="modalCloseBtn">
+                    Tutup
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner">
+                <i class="fas fa-heart"></i>
+            </div>
+            <p>Menyimpan apresiasi...</p>
+        </div>
+    </div>
+
+    <!-- Demo-specific configuration -->
+    <script>
+        // Force demo mode
+        window.SUPABASE_CONFIG = {
+            url: 'DEMO_MODE',
+            apiKey: 'DEMO_MODE'
+        };
+    </script>
+    <script src="database.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
